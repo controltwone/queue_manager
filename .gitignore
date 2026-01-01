@@ -1,0 +1,18 @@
+# --- general  system files ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# --- Go Backend ---
+/backend/bin/
+/backend/main    # Linux/Mac binary
+/backend/main.exe # Windows binary
+/backend/*.exe
+/backend/*.exe~
+/backend/*.dll
+/backend/vendor/
+go.work
+go.work.sum
+
