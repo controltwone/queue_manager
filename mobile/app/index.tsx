@@ -12,8 +12,8 @@ import {
   Keyboard
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-// NEW: Import storage library
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 interface MessageStats {
   ack: number;
@@ -35,7 +35,7 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  // NEW: Load saved IP on app startup
+  // Load saved IP on app startup
   useEffect(() => {
     const loadSavedIp = async () => {
       try {
