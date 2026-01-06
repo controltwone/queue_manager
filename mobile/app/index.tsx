@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  ListRenderItem
+  ListRenderItem,
+  Keyboard
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+// NEW: Import storage library
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MessageStats {
   ack: number;
@@ -24,18 +27,37 @@ interface Queue {
   message_stats?: MessageStats;
 }
 
+const STORAGE_KEY = 'last_server_ip'; // Key for saving IP
+
 export default function App() {
-  const [ipAddress, setIpAddress] = useState<string>('192.168.1.35:8080'); 
+  const [ipAddress, setIpAddress] = useState<string>(''); 
   const [queues, setQueues] = useState<Queue[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  
-  // To verify if connection is established to start polling
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  // FETCH FUNCTION: Supports 'silent' mode to avoid spinner flickering
+  // NEW: Load saved IP on app startup
+  useEffect(() => {
+    const loadSavedIp = async () => {
+      try {
+        const savedIp = await AsyncStorage.getItem(STORAGE_KEY);
+        if (savedIp) {
+          setIpAddress(savedIp);
+        } else {
+            setIpAddress('192.168.1.35:8080'); // Default fallback
+        }
+      } catch (e) {
+        console.error("Failed to load IP");
+      }
+    };
+    loadSavedIp();
+  }, []);
+
   const fetchQueues = async (silent: boolean = false) => {
     if (!silent) setLoading(true);
     
+    // Dismiss keyboard on manual connect
+    if (!silent) Keyboard.dismiss();
+
     let formattedIp = ipAddress;
     if (!formattedIp.startsWith('http')) {
       formattedIp = `http://${formattedIp}`;
@@ -50,29 +72,34 @@ export default function App() {
       }
       const data: Queue[] = await response.json();
       setQueues(data);
-      setIsConnected(true); // Connection successful, keep polling
+      setIsConnected(true);
+      
+      // NEW: Save IP to storage upon successful connection
+      if (!silent) {
+        await AsyncStorage.setItem(STORAGE_KEY, ipAddress);
+      }
+
     } catch (error) {
       console.error(error);
       if (!silent) {
         Alert.alert("Connection Error", "Could not reach server.");
+        setIsConnected(false);
       }
     } finally {
       if (!silent) setLoading(false);
     }
   };
 
-  // AUTO-REFRESH LOGIC (POLLING)
+  // Auto-refresh logic (Polling)
   useEffect(() => {
-    let interval: any;
+    let interval: any; // Used 'any' to fix TypeScript conflict
 
     if (isConnected) {
-      // If connected, fetch every 2 seconds silently
       interval = setInterval(() => {
-        fetchQueues(true); // true = silent mode
+        fetchQueues(true);
       }, 2000);
     }
 
-    // Cleanup: Stop timer when screen closes or connection stops
     return () => clearInterval(interval);
   }, [isConnected, ipAddress]);
 
@@ -91,7 +118,7 @@ export default function App() {
           <Text style={[styles.queueName, { color: textColor }]}>
             {item.name}
           </Text>
-          {isCritical && <Text style={styles.badge}>⚠️ CRITICAL</Text>}
+          {isCritical && <Text style={styles.badge}>CRITICAL</Text>}
         </View>
 
         <View style={styles.statsRow}>
@@ -121,9 +148,8 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
-        <Text style={styles.headerTitle}>🐰 RabbitMQ Monitor</Text>
+        <Text style={styles.headerTitle}>RabbitMQ Monitor</Text>
         
-        {/* Status Indicator */}
         {isConnected && (
             <View style={styles.liveIndicator}>
                 <View style={styles.dot} />
@@ -132,13 +158,13 @@ export default function App() {
         )}
 
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Server IP (e.g., 192.168.1.35:8080)</Text>
+          <Text style={styles.label}>Server IP</Text>
           <TextInput
             style={styles.input}
             value={ipAddress}
             onChangeText={(text) => {
                 setIpAddress(text);
-                setIsConnected(false); // Stop polling if IP changes
+                setIsConnected(false);
             }}
             placeholder="192.168.1.35:8080"
             keyboardType="url"
@@ -168,7 +194,7 @@ export default function App() {
           ListEmptyComponent={
             !loading ? (
               <Text style={styles.emptyText}>
-                No data. Enter IP address to connect.
+                No data. Check IP and connect.
               </Text>
             ) : null
           }
@@ -190,7 +216,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, color: '#666', marginBottom: 5, fontWeight:'600' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, backgroundColor: '#fafafa' },
   button: { backgroundColor: '#757575', padding: 14, borderRadius: 8, alignItems: 'center' },
-  buttonActive: { backgroundColor: '#2196f3' }, // Blue when connected
+  buttonActive: { backgroundColor: '#2196f3' },
   buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
   listContent: { padding: 15, paddingBottom: 50 },
